@@ -44,6 +44,16 @@
     border:1px solid var(--border);border-radius:6px;padding:8px 10px;font-size:10.5px;color:var(--grey);z-index:10}
   #legend b{color:var(--navy)}
   .lrow{display:flex;align-items:center;gap:6px;margin:2px 0}
+  #zoomctl{position:absolute;right:12px;top:12px;display:flex;flex-direction:column;gap:4px;z-index:15}
+  #zoomctl button{width:32px;height:32px;border:1px solid var(--border);background:rgba(255,255,255,.96);
+    color:var(--navy);font-size:17px;font-weight:700;border-radius:6px;cursor:pointer;line-height:1;
+    display:flex;align-items:center;justify-content:center;font-family:inherit;box-shadow:0 1px 4px rgba(26,39,63,.10)}
+  #zoomctl button:hover{background:var(--fill)}
+  #zreset{font-size:12px}
+  svg{cursor:grab}
+  svg.grabbing{cursor:grabbing}
+  .hint{position:absolute;left:12px;top:12px;background:rgba(255,255,255,.9);border:1px solid var(--border);
+    border-radius:5px;padding:4px 9px;font-size:10.5px;color:var(--grey);z-index:12}
   .footer{flex:0 0 auto;font-size:9.5px;color:var(--grey);margin-top:6px}
 </style>
 </head>
@@ -57,11 +67,17 @@
   <div id="filters"></div>
   <div id="stage">
     <svg id="map" viewBox="0 0 1000 640" preserveAspectRatio="xMidYMid meet"></svg>
+    <div class="hint">Scroll to zoom · drag to pan</div>
     <div id="tip"></div>
     <div id="legend">
       <div class="lrow"><span style="width:10px;height:10px;border-radius:50%;background:var(--navy);display:inline-block"></span> <span>Operational</span></div>
       <div class="lrow"><span style="width:10px;height:10px;border-radius:50%;background:#fff;border:1.5px solid var(--navy);display:inline-block"></span> <span>Pipeline</span></div>
       <div class="lrow"><span style="width:10px;height:10px;border-radius:50%;background:#B0B6C0;display:inline-block"></span> <span><b>Multiple</b> companies</span></div>
+    <div id="zoomctl">
+      <button id="zin" title="Zoom in">+</button>
+      <button id="zout" title="Zoom out">−</button>
+      <button id="zreset" title="Reset view">⬜</button>
+    </div>
     </div>
   </div>
   <div class="footer">Prajana Advisors · IC Note — Confidential. Property lists per the Prajana company notes; not exhaustive full footprints. Reconcile at circulation.</div>
@@ -169,6 +185,66 @@ addBtn('All companies','all');
 for(const co in COMPANIES) addBtn(co,co);
 
 drawDots();
+
+// ---------- ZOOM & PAN ----------
+const VB0={x:0,y:0,w:1000,h:640};
+let vb={...VB0};
+function applyVB(){ svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`); rescale(); }
+function rescale(){
+  // keep dots & strokes a constant screen size as we zoom
+  const k = vb.w / VB0.w;               // <1 = zoomed in
+  const r = Math.max(2.2, 5.5*k);
+  dots.forEach(d=>{
+    d.setAttribute('r', r);
+    const pipe = d.getAttribute('fill')==='#fff' || d.getAttribute('fill')==='#ffffff';
+    d.setAttribute('stroke-width', (pipe?2:1.2)*k);
+  });
+}
+function clampVB(){
+  // limit how far you can zoom / pan out
+  vb.w=Math.min(VB0.w, Math.max(120, vb.w));
+  vb.h=vb.w*(VB0.h/VB0.w);
+  vb.x=Math.min(VB0.x+VB0.w-vb.w, Math.max(VB0.x, vb.x));
+  vb.y=Math.min(VB0.y+VB0.h-vb.h, Math.max(VB0.y, vb.y));
+}
+function zoomAt(cx,cy,factor){
+  const nx = cx - (cx-vb.x)*factor;
+  const ny = cy - (cy-vb.y)*factor;
+  vb={x:nx,y:ny,w:vb.w*factor,h:vb.h*factor};
+  clampVB(); applyVB();
+}
+function svgPoint(ev){
+  const rect=svg.getBoundingClientRect();
+  return { x: vb.x + (ev.clientX-rect.left)/rect.width*vb.w,
+           y: vb.y + (ev.clientY-rect.top)/rect.height*vb.h };
+}
+// wheel zoom toward cursor
+svg.addEventListener('wheel',ev=>{
+  ev.preventDefault();
+  const pt=svgPoint(ev);
+  const factor = ev.deltaY<0 ? 0.82 : 1.22;   // in / out
+  zoomAt(pt.x,pt.y,factor);
+},{passive:false});
+// buttons zoom toward centre
+function centre(){ return {x:vb.x+vb.w/2, y:vb.y+vb.h/2}; }
+document.getElementById('zin').onclick=()=>{const c=centre();zoomAt(c.x,c.y,0.7);};
+document.getElementById('zout').onclick=()=>{const c=centre();zoomAt(c.x,c.y,1.43);};
+document.getElementById('zreset').onclick=()=>{vb={...VB0};applyVB();};
+// drag to pan
+let dragging=false,last=null;
+svg.addEventListener('pointerdown',ev=>{dragging=true;last=svgPoint(ev);svg.classList.add('grabbing');svg.setPointerCapture(ev.pointerId);tip.style.display='none';});
+svg.addEventListener('pointermove',ev=>{
+  if(!dragging)return;
+  const p=svgPoint(ev);
+  vb.x -= (p.x-last.x); vb.y -= (p.y-last.y);
+  clampVB(); applyVB();
+});
+function endDrag(ev){ if(dragging){dragging=false;svg.classList.remove('grabbing');} }
+svg.addEventListener('pointerup',endDrag);
+svg.addEventListener('pointerleave',endDrag);
+// double-click to zoom in
+svg.addEventListener('dblclick',ev=>{const p=svgPoint(ev);zoomAt(p.x,p.y,0.6);});
+rescale();
 </script>
 </body>
 </html>
