@@ -130,9 +130,9 @@ function addBtn(label,co){
 }
 addBtn('All companies','all');
 for(const co in COMPANIES) addBtn(co,co);
+const VB0={x:0,y:0,w:1000,h:640}; let vb={...VB0};
 drawDots();
 // ZOOM & PAN
-const VB0={x:0,y:0,w:1000,h:640}; let vb={...VB0};
 function applyVB(){svg.setAttribute('viewBox',`${vb.x} ${vb.y} ${vb.w} ${vb.h}`);rescale();}
 function rescale(){ const k=vb.w/VB0.w; const r=Math.max(2.2,5.5*k); dots.forEach(d=>{d.setAttribute('r',r);const pipe=d.getAttribute('fill')==='#fff';d.setAttribute('stroke-width',(pipe?2:1.2)*k);}); }
 function clampVB(){ vb.w=Math.min(VB0.w,Math.max(120,vb.w)); vb.h=vb.w*(VB0.h/VB0.w); vb.x=Math.min(VB0.x+VB0.w-vb.w,Math.max(VB0.x,vb.x)); vb.y=Math.min(VB0.y+VB0.h-vb.h,Math.max(VB0.y,vb.y)); }
